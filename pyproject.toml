@@ -1,0 +1,25 @@
+[project]
+name = "fzp"
+version = "0.1.0"
+description = "Python 写的极简 fzf：自研 fuzzy 打分 + prompt_toolkit 交互界面"
+readme = "README.md"
+authors = [
+    { name = "r1cardohj", email = "2413302357@qq.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "click>=8.5.1",
+    "prompt-toolkit>=3.0.53",
+]
+
+[project.scripts]
+fzp = "fzp.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.23,<0.12.0"]
+build-backend = "uv_build"

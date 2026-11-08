@@ -1,0 +1,215 @@
+"""极简 fzf 式交互界面（prompt_toolkit）。"""
+
+from __future__ import annotations
+
+import sys
+from typing import Sequence
+
+from prompt_toolkit.application import Application, get_app
+from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.input import create_input
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.layout import HSplit, Layout, VSplit, Window
+from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+from prompt_toolkit.output import create_output
+from prompt_toolkit.styles import Style
+
+from .fuzzy import Match, fuzzy_filter
+
+STYLE = Style.from_dict(
+    {
+        "prompt": "fg:#5f87d7 bold",
+        "pointer": "fg:#5f87d7 bold",
+        "match": "fg:ansibrightgreen bold",
+        "current": "reverse",
+        "current match": "reverse fg:ansibrightgreen bold",
+        "empty": "fg:ansired",
+        "info": "fg:#808080",
+    }
+)
+
+
+class Picker:
+    """在候选列表里 fuzzy 搜索、上下选择、回车确认。
+
+    pick() 返回选中的条目；用户按 Ctrl-C / Esc 时返回 None。
+    """
+
+    def __init__(self, items: Sequence[str], query: str = "") -> None:
+        self.items = list(items)
+        self.results: list[tuple[str, Match]] = []
+        self.pointer = 0
+        self.offset = 0
+        self.app: Application[str] | None = None
+
+        self.query_buffer = Buffer(multiline=False)
+        self.query_buffer.text = query
+        self.query_buffer.on_text_changed += self._on_query_changed
+
+        prompt = Window(
+            FormattedTextControl([("class:prompt", "❯ ")]),
+            width=2,
+            height=1,
+        )
+        query_line = VSplit(
+            [prompt, Window(BufferControl(buffer=self.query_buffer), height=1)]
+        )
+        self.results_window = Window(
+            FormattedTextControl(self._render_results),
+            wrap_lines=False,
+        )
+        status = Window(
+            FormattedTextControl(self._render_status), height=1, style="class:info"
+        )
+
+        layout = Layout(HSplit([query_line, self.results_window, status]))
+        self.app = Application(
+            layout=layout,
+            key_bindings=self._key_bindings(),
+            full_screen=True,
+            mouse_support=False,
+            style=STYLE,
+            input=create_input(always_prefer_tty=True),
+            output=create_output(self._ui_stream()),
+        )
+        self._refresh()
+
+    # ------------------------------------------------------------------ 状态
+
+    def _ui_stream(self):
+        """界面画到 stderr，stdout 只留给最终结果（方便管道/命令替换）。"""
+        if sys.stderr is not None and sys.stderr.isatty():
+            return sys.stderr
+        return sys.stdout
+
+    def _visible_rows(self) -> int:
+        """结果区可显示的行数（减去查询行和状态行）。"""
+        try:
+            rows = get_app().output.get_size().rows
+        except Exception:
+            rows = 24
+        return max(1, rows - 2)
+
+    def _on_query_changed(self, _buffer: Buffer) -> None:
+        self._refresh()
+
+    def _refresh(self) -> None:
+        self.results = fuzzy_filter(self.query_buffer.text, self.items)
+        self.pointer = 0
+        self.offset = 0
+        if self.app is not None:
+            self.app.invalidate()
+
+    def _current(self) -> str | None:
+        if not self.results:
+            return None
+        return self.results[self.pointer][0]
+
+    def _move(self, delta: int) -> None:
+        if not self.results:
+            return
+        self.pointer = min(max(self.pointer + delta, 0), len(self.results) - 1)
+        visible = self._visible_rows()
+        if self.pointer < self.offset:
+            self.offset = self.pointer
+        elif self.pointer >= self.offset + visible:
+            self.offset = self.pointer - visible + 1
+
+    # ------------------------------------------------------------------ 渲染
+
+    @staticmethod
+    def _fragments(text: str, positions: tuple[int, ...], selected: bool):
+        """把一行拆成普通字符 / 命中字符（用于高亮）。"""
+        plain = "class:current" if selected else ""
+        hit = "class:current class:match" if selected else "class:match"
+        fragments = []
+        last = 0
+        for position in positions:
+            if position > last:
+                fragments.append((plain, text[last:position]))
+            fragments.append((hit, text[position]))
+            last = position + 1
+        if last < len(text):
+            fragments.append((plain, text[last:]))
+        return fragments
+
+    def _render_results(self):
+        visible = self._visible_rows()
+
+        if not self.results:
+            return [("class:empty", "  <无匹配>")]
+
+        self.offset = max(0, min(self.offset, len(self.results) - 1))
+        if self.pointer < self.offset:
+            self.offset = self.pointer
+        elif self.pointer >= self.offset + visible:
+            self.offset = self.pointer - visible + 1
+
+        lines = []
+        end = min(self.offset + visible, len(self.results))
+        for index in range(self.offset, end):
+            text, match = self.results[index]
+            selected = index == self.pointer
+            marker = "> " if selected else "  "
+            lines.append(
+                (
+                    "class:current class:pointer" if selected else "class:pointer",
+                    marker,
+                )
+            )
+            lines.extend(self._fragments(text, match.positions, selected))
+            if index != end - 1:
+                lines.append(("", "\n"))
+        return lines
+
+    def _render_status(self):
+        total = len(self.items)
+        if not self.results:
+            return f"  0/{total}"
+        return f"  {self.pointer + 1}/{len(self.results)}  (共 {total} 条)"
+
+    # -------------------------------------------------------------- 键位绑定
+
+    def _key_bindings(self) -> KeyBindings:
+        bindings = KeyBindings()
+
+        @bindings.add("down")
+        @bindings.add("c-n")
+        @bindings.add("c-j")
+        def _down(event) -> None:
+            self._move(1)
+
+        @bindings.add("up")
+        @bindings.add("c-p")
+        def _up(event) -> None:
+            self._move(-1)
+
+        @bindings.add("pageup")
+        def _page_up(event) -> None:
+            self._move(-self._visible_rows())
+
+        @bindings.add("pagedown")
+        def _page_down(event) -> None:
+            self._move(self._visible_rows())
+
+        @bindings.add("enter")
+        def _accept(event) -> None:
+            event.app.exit(result=self._current())
+
+        @bindings.add("c-c")
+        @bindings.add("c-d")
+        @bindings.add("c-g")
+        @bindings.add("escape")
+        def _abort(event) -> None:
+            event.app.exit(result=None)
+
+        return bindings
+
+    # ------------------------------------------------------------------- 入口
+
+    def pick(self) -> str | None:
+        assert self.app is not None
+        try:
+            return self.app.run()
+        except (EOFError, KeyboardInterrupt):
+            return None
