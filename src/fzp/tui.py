@@ -1,4 +1,4 @@
-"""极简 fzf 式交互界面（prompt_toolkit）。"""
+"""极简 fzf 式交互界面（prompt_toolkit）。界面文案统一用英文。"""
 
 from __future__ import annotations
 
@@ -19,14 +19,27 @@ from .fuzzy import Match, fuzzy_filter
 STYLE = Style.from_dict(
     {
         "prompt": "fg:#5f87d7 bold",
-        "pointer": "fg:#5f87d7 bold",
+        "pointer": "fg:ansibrightcyan bold",
+        # 选中的行：换颜色 + 加粗（不用背景色）
+        "current": "fg:ansibrightcyan bold",
+        # fuzzy 命中的字符：纯文字高亮（换前景色 + 加粗，不用背景色）
         "match": "fg:ansibrightgreen bold",
-        "current": "reverse",
-        "current match": "reverse fg:ansibrightgreen bold",
-        "empty": "fg:ansired",
+        "current match": "fg:ansibrightgreen bold underline",
+        "empty": "fg:#808080",
         "info": "fg:#808080",
     }
 )
+
+# 界面文案集中在这里，保持全英文
+PROMPT = "❯ "
+NO_MATCH = "<no match>"
+
+
+def status_text(position: int, matches: int, total: int) -> str:
+    """状态栏：当前第几个/匹配数/总数。"""
+    if matches == 0:
+        return f"  0/{total}  ({total} items)"
+    return f"  {position}/{matches}  ({total} items)"
 
 
 class Picker:
@@ -47,8 +60,8 @@ class Picker:
         self.query_buffer.on_text_changed += self._on_query_changed
 
         prompt = Window(
-            FormattedTextControl([("class:prompt", "❯ ")]),
-            width=2,
+            FormattedTextControl([("class:prompt", PROMPT)]),
+            width=len(PROMPT),
             height=1,
         )
         query_line = VSplit(
@@ -137,7 +150,7 @@ class Picker:
         visible = self._visible_rows()
 
         if not self.results:
-            return [("class:empty", "  <无匹配>")]
+            return [("class:empty", f"  {NO_MATCH}")]
 
         self.offset = max(0, min(self.offset, len(self.results) - 1))
         if self.pointer < self.offset:
@@ -163,10 +176,7 @@ class Picker:
         return lines
 
     def _render_status(self):
-        total = len(self.items)
-        if not self.results:
-            return f"  0/{total}"
-        return f"  {self.pointer + 1}/{len(self.results)}  (共 {total} 条)"
+        return status_text(self.pointer + 1, len(self.results), len(self.items))
 
     # -------------------------------------------------------------- 键位绑定
 

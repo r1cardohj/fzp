@@ -17,21 +17,21 @@ def _has_tty() -> bool:
 
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(package_name="fzp", prog_name="fzp")
-@click.option("-q", "--query", default="", help="启动时的初始查询串。")
+@click.option("-q", "--query", default="", help="Initial query string.")
 @click.option(
     "--hidden/--no-hidden",
     default=False,
     show_default=True,
-    help="扫描当前目录时是否包含隐藏文件。",
+    help="Include hidden files when scanning the current directory.",
 )
 def main(query: str, hidden: bool) -> None:
-    """fzp —— Python 写的极简 fzf：fuzzy 搜索文件或管道输入。
+    """fzp - a tiny fzf in Python: fuzzy-search files or piped input.
 
     \b
-    用法示例：
-      fzp                    # 扫描当前目录，选中后打印路径
-      ls | fzp               # 从管道读取候选
-      vim $(ls | fzp)        # 把选中的文件交给别的命令
+    Examples:
+      fzp                    # scan the current directory, print the selection
+      ls | fzp               # read candidates from a pipe
+      vim $(ls | fzp)        # hand the selection to another command
     """
     items: list[str] = []
     if sys.stdin is not None and not sys.stdin.isatty():
@@ -42,7 +42,7 @@ def main(query: str, hidden: bool) -> None:
 
     items = [item for item in items if item.strip()]
     if not items:
-        raise click.ClickException("没有找到任何候选条目")
+        raise click.ClickException("No candidates found")
 
     # 没有终端（比如在脚本里跑）时退化成纯过滤，方便测试和自动化
     if not _has_tty():
