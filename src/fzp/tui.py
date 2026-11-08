@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
-from typing import IO, Sequence, cast
+from typing import IO, Sequence
 
 from prompt_toolkit.application import Application, get_app
 from prompt_toolkit.buffer import Buffer
@@ -47,6 +48,7 @@ class Picker:
     """在候选列表里 fuzzy 搜索、上下选择、回车确认。
 
     pick() 返回选中的条目；用户按 Ctrl-C / Esc 时返回 None。
+    需要嵌到别的 prompt_toolkit 应用里时用 pick_async(host=app)。
     """
 
     def __init__(
@@ -67,6 +69,8 @@ class Picker:
         self.pointer = 0
         self.offset = 0
         self.app: Application[str] | None = None
+        # 嵌入模式下的宿主应用（见 pick_async）。
+        self._host: Application | None = None
 
         self.query_buffer = Buffer(multiline=False)
         self.query_buffer.text = query
@@ -133,8 +137,13 @@ class Picker:
         self.results = fuzzy_filter(self.query_buffer.text, self.items)
         self.pointer = 0
         self.offset = 0
-        if self.app is not None:
-            self.app.invalidate()
+        self._invalidate()
+
+    def _invalidate(self) -> None:
+        """嵌入时重绘宿主应用，独立运行时重绘自己的应用。"""
+        target = self._host if self._host is not None else self.app
+        if target is not None:
+            target.invalidate()
 
     def _current(self) -> str | None:
         if not self.results:
@@ -247,8 +256,56 @@ class Picker:
     # ------------------------------------------------------------------- 入口
 
     def pick(self) -> str | None:
+        """独立运行：自己开事件循环、自己接管终端。"""
         assert self.app is not None
         try:
             return self.app.run()
         except (EOFError, KeyboardInterrupt):
             return None
+
+    async def pick_async(self, host: Application | None = None) -> str | None:
+        """异步运行；``host`` 给定时嵌到宿主应用里。
+
+        嵌入模式不另起 Application，也不碰 stdin：临时把宿主的 layout /
+        键位 / 样式换成 picker 的，让宿主自己的按键处理驱动它。这样就不存在
+        “两个 Application 抢同一个终端和事件循环”的问题，宿主退出后也
+        不需要重新 attach 输入。
+
+        宿主一般是一个已经在运行的应用（比如 REPL 的 PromptSession），
+        它的 layout 被暂时换掉、退出时再换回来。
+        """
+        assert self.app is not None
+        if host is None:
+            try:
+                return await self.app.run_async()
+            except (EOFError, KeyboardInterrupt):
+                return None
+
+        loop = asyncio.get_running_loop()
+        result: asyncio.Future[str | None] = loop.create_future()
+        saved_layout, saved_keys, saved_style = (
+            host.layout,
+            host.key_bindings,
+            host.style,
+        )
+
+        self._host = host
+        # _exit() 里调 app.exit()，把结果写进这个 future。
+        self.app.future = result
+        host.layout = self.app.layout
+        host.key_bindings = self.app.key_bindings
+        host.style = self.app.style
+        host.invalidate()
+        try:
+            return await result
+        finally:
+            self._host = None
+            self.app.future = None
+            host.layout, host.key_bindings, host.style = (
+                saved_layout,
+                saved_keys,
+                saved_style,
+            )
+            # 先把 picker 占用的行抹掉，再让宿主重画自己的界面。
+            host.renderer.erase()
+            host.invalidate()

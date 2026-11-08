@@ -73,3 +73,44 @@ def test_match_uses_a_distinct_color_from_current_line():
     current_rule = _rule(STYLE, "current")
     assert "ansibrightgreen" in match_rule
     assert "ansibrightgreen" not in current_rule
+
+
+def test_pick_async_hosts_into_a_running_application():
+    """嵌入模式：换宿主的 layout / 键位 / 样式，复用宿主的事件循环与输入。"""
+    import asyncio
+
+    from prompt_toolkit.application import Application
+    from prompt_toolkit.layout import Layout, Window
+
+    host = Application(layout=Layout(Window()), input=DummyInput(), output=DummyOutput())
+    saved_layout, saved_keys, saved_style = host.layout, host.key_bindings, host.style
+    picker = Picker(["alpha", "beta"])
+
+    async def scenario():
+        task = asyncio.ensure_future(picker.pick_async(host=host))
+        await asyncio.sleep(0)  # let the picker swap in
+        assert host.layout is picker.app.layout
+        assert host.key_bindings is picker.app.key_bindings
+        assert host.style is picker.app.style
+        # The picker's key bindings call app.exit(), which resolves our future.
+        picker._exit("beta")
+        return await task
+
+    assert asyncio.run(scenario()) == "beta"
+    assert host.layout is saved_layout
+    assert host.key_bindings is saved_keys
+    assert host.style is saved_style
+    assert picker.app.future is None
+    assert picker._host is None
+
+
+def test_pick_async_without_host_runs_its_own_app(monkeypatch):
+    import asyncio
+
+    picker = Picker(["alpha"])
+
+    async def fake_run_async():
+        return "alpha"
+
+    monkeypatch.setattr(picker.app, "run_async", fake_run_async)
+    assert asyncio.run(picker.pick_async()) == "alpha"
