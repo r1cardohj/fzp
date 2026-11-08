@@ -12,4 +12,4 @@ except ImportError:  # pragma: no cover
     Picker = None  # type: ignore[assignment]
 
 __all__ = ["Match", "Picker", "fuzzy_filter", "fuzzy_match", "walk_files"]
-__version__ = "0.2.0"
+__version__ = "0.2.1"

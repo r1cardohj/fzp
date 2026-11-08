@@ -1,6 +1,6 @@
 [project]
 name = "fzp"
-version = "0.2.0"
+version = "0.2.1"
 description = "A minimal fzf clone in Python: custom fuzzy scoring + prompt_toolkit interactive UI"
 readme = "README.md"
 license = "MIT"

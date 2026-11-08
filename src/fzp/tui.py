@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from typing import IO, Sequence
+from typing import IO, Sequence, cast
 
 from prompt_toolkit.application import Application, get_app
 from prompt_toolkit.buffer import Buffer
@@ -11,7 +11,7 @@ from prompt_toolkit.input import create_input
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.layout import HSplit, Layout, VSplit, Window
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
-from prompt_toolkit.output import create_output
+from prompt_toolkit.output import Output, create_output
 from prompt_toolkit.styles import Style
 
 from .fuzzy import Match, fuzzy_filter
@@ -54,12 +54,13 @@ class Picker:
         items: Sequence[str],
         query: str = "",
         input: object | None = None,  # PosixPipeInput / create_pipe_input()
-        output: IO[str] | None = None,
+        output: IO[str] | Output | None = None,
     ) -> None:
         """``input``/``output`` override the TTY streams (for embedding).
 
-        Pass a pipe input and a text stream to render inline inside another
-        prompt_toolkit application instead of taking over the terminal.
+        Pass a pipe input and a text stream (or an existing ``Output``) to
+        render inline inside another prompt_toolkit application instead of
+        taking over the terminal.
         """
         self.items = list(items)
         self.results: list[tuple[str, Match]] = []
@@ -88,6 +89,13 @@ class Picker:
         )
 
         layout = Layout(HSplit([query_line, self.results_window, status]))
+        resolved_output: Output
+        if output is None:
+            resolved_output = create_output(self._ui_stream())
+        elif isinstance(output, Output):
+            resolved_output = output
+        else:
+            resolved_output = create_output(output)
         self.app = Application(
             layout=layout,
             key_bindings=self._key_bindings(),
@@ -96,7 +104,7 @@ class Picker:
             mouse_support=False,
             style=STYLE,
             input=input if input is not None else create_input(always_prefer_tty=True),
-            output=create_output(output if output is not None else self._ui_stream()),
+            output=resolved_output,
         )
         self._refresh()
 
