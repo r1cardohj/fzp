@@ -1,7 +1,7 @@
 [project]
 name = "fzp"
 version = "0.1.0"
-description = "Python 写的极简 fzf：自研 fuzzy 打分 + prompt_toolkit 交互界面"
+description = "A minimal fzf clone in Python: custom fuzzy scoring + prompt_toolkit interactive UI"
 readme = "README.md"
 authors = [
     { name = "r1cardohj", email = "2413302357@qq.com" }

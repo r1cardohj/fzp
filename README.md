@@ -1,86 +1,85 @@
 # fzp
 
-用 Python 写的极简 [fzf](https://github.com/junegunn/fzf)。第一版（MVP）先把
-**核心算法**和最小的可用交互做出来：输入文件路径/管道内容，fuzzy 搜索，回车输出。
+A minimal [fzf](https://github.com/junegunn/fzf) clone written in Python. The first version (MVP) focuses on the **core algorithm** and a minimal usable interaction: feed it file paths or piped input, fuzzy search, press Enter to print the result.
 
 ![demo](https://img.shields.io/badge/python-3.12%2B-blue)
 
-## 快速开始
+## Quick Start
 
 ```bash
 git clone <repo> && cd fzp
 uv sync
 
-uv run fzp                  # 扫描当前目录，选中后把路径打印到 stdout
-ls | uv run fzp             # 从管道读取候选
-vim $(ls | uv run fzp)      # 配合命令替换使用
-uv run fzp -q cli           # 带初始查询串启动
+uv run fzp                  # scan the current directory, print the selected path to stdout
+ls | uv run fzp             # read candidates from a pipe
+vim $(ls | uv run fzp)      # use with command substitution
+uv run fzp -q cli           # start with an initial query
 ```
 
-交互键位：
+Key bindings:
 
-| 键位 | 作用 |
+| Key | Action |
 | --- | --- |
-| `↑` / `Ctrl-P` | 上移 |
-| `↓` / `Ctrl-N` / `Ctrl-J` | 下移 |
-| `PgUp` / `PgDn` | 翻页 |
-| `Enter` | 确认，把选中条目打印到 stdout |
-| `Esc` / `Ctrl-C` / `Ctrl-D` / `Ctrl-G` | 取消，退出码 130 |
+| `↑` / `Ctrl-P` | Move up |
+| `↓` / `Ctrl-N` / `Ctrl-J` | Move down |
+| `PgUp` / `PgDn` | Page up / down |
+| `Enter` | Confirm, print the selected item to stdout |
+| `Esc` / `Ctrl-C` / `Ctrl-D` / `Ctrl-G` | Cancel, exit code 130 |
 
-界面画在 stderr 上，stdout 只输出最终结果，所以可以直接用于管道和 `$( )`。
-界面文案全英文（`❯ ` 提示符、`<no match>`、`1/3  (4 items)` 状态栏）；
-fuzzy 命中的字符用**文字颜色**（亮绿 + 下划线）高亮，不使用背景色或反显，
-选中的行用亮青加粗表示。
+The UI is drawn on stderr, and stdout only carries the final result, so it works seamlessly with pipes and `$( )`.
+All UI text is in English (`❯ ` prompt, `<no match>`, `1/3  (4 items)` status bar).
+Matched characters are highlighted with a **text color** (bright green + underline) — no background color or reverse video;
+the selected line is shown in bright cyan and bold.
 
-## 核心算法（`src/fzp/fuzzy.py`）
+## Core Algorithm (`src/fzp/fuzzy.py`)
 
-不依赖任何第三方 fuzzy 库，思路参考 fzf v1：
+No third-party fuzzy library is used. The approach is inspired by fzf v1:
 
-1. **子序列匹配**：pattern 的字符按顺序出现在候选中即命中，大小写不敏感。
-2. **两种对齐取更优**：正向贪心（每个字符取最早出现位置，容易连续命中）与
-   反向贪心（每个字符取最晚出现位置，容易贴近文件名末尾），两者取分数高者。
-3. **打分规则**：
+1. **Subsequence matching**: a candidate matches if the pattern's characters appear in order; case-insensitive.
+2. **Two alignments, pick the better one**: forward greedy (each character takes its earliest occurrence, favoring consecutive matches) and backward greedy (each character takes its latest occurrence, favoring matches near the end of the filename); the higher-scoring one wins.
+3. **Scoring rules**:
 
-   | 规则 | 分值 |
+   | Rule | Score |
    | --- | --- |
-   | 每命中一个字符 | +16 |
-   | 命中在串首 | +16 |
-   | 命中在分隔符（`/ . _ - : ; , |` 空格等）或驼峰 / 数字字母边界之后 | +8 |
-   | 与前一个命中相邻 | +16 |
-   | 大小写也一致 | +2 |
-   | 中间每跳过一段字符 | -3，之后每多跳 1 个字符再 -1 |
+   | Each matched character | +16 |
+   | Match at the start of the string | +16 |
+   | Match right after a delimiter (`/ . _ - : ; , |`, space, etc.) or a camelCase / letter-digit boundary | +8 |
+   | Adjacent to the previous match | +16 |
+   | Exact case match | +2 |
+   | Each skipped gap between matches | -3, then -1 for each additional skipped character |
 
-4. **排序**：分数降序，同分时更短、更靠前的条目优先；空查询保持输入顺序（和 fzf 一致）。
+4. **Sorting**: by score descending; ties prefer shorter items and earlier input order; an empty query preserves the input order (same as fzf).
 
-因此 `app` 会优先命中 `app.py`，而不是 `a_p_p.py`：
+So `app` ranks `app.py` above `a_p_p.py`:
 
 ```python
 >>> from fzp import fuzzy_filter
 >>> [item for item, _ in fuzzy_filter("app", ["a_p_p.py", "src/app.py", "app.py"])]
-['app.py', 'src/app.py', 'a_p_p.py']```
+['app.py', 'src/app.py', 'a_p_p.py']
+```
 
-## 项目结构
+## Project Structure
 
 ```
 src/fzp/
-├── cli.py     # click 入口：管道检测、目录扫描、输出结果
-├── fuzzy.py   # 核心 fuzzy 匹配 + 打分 + 排序（纯函数，好测）
-├── files.py   # 无管道输入时扫描当前目录
-└── tui.py     # prompt_toolkit 交互界面（查询行 / 结果列表 / 状态栏）
-tests/         # pytest：算法、目录扫描、CLI
-scripts/pty_smoke.py  # 用 pty 跑真实交互的冒烟测试
+├── cli.py     # click entrypoint: pipe detection, directory scan, result output
+├── fuzzy.py   # core fuzzy matching + scoring + sorting (pure functions, easy to test)
+├── files.py   # scans the current directory when there's no piped input
+└── tui.py     # prompt_toolkit interactive UI (query line / result list / status bar)
+tests/         # pytest: algorithm, directory scan, CLI
+scripts/pty_smoke.py  # smoke test driving a real interactive session via pty
 ```
 
-## 开发
+## Development
 
 ```bash
-uv run pytest                 # 单元测试
-uv run python scripts/pty_smoke.py   # 交互冒烟测试（需要 pty）
+uv run pytest                 # unit tests
+uv run python scripts/pty_smoke.py   # interactive smoke test (requires a pty)
 ```
 
-## 后续计划
+## Roadmap
 
-- 多选（Tab 标记，`--multi`）
-- 结果预览（`--preview`）
-- 候选来源缓存 / 增量读取超大输入
-- DP（Smith-Waterman）版本打分，进一步贴近 fzf v2 的打分
+- Multi-select (Tab to toggle, `--multi`)
+- Result preview (`--preview`)
+- Candidate caching / incremental reading for huge inputs
+- DP (Smith-Waterman) scoring to get even closer to fzf v2
