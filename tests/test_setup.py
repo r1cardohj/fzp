@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -44,6 +46,8 @@ def test_inject_replaces_existing_block(tmp_path: Path):
 
 
 def test_snippet_is_valid_bash_syntax():
+    if shutil.which("bash") is None or sys.platform == "win32":
+        pytest.skip("requires a Unix bash; Windows runners may expose a WSL launcher")
     import subprocess
 
     proc = subprocess.run(
@@ -57,6 +61,8 @@ def test_snippet_is_valid_bash_syntax():
 
 def test_bash_binding_pastes_selection_into_readline(tmp_path: Path):
     """在伪终端之外模拟 readline 环境，验证选中的路径会被填回 READLINE_LINE。"""
+    if shutil.which("bash") is None or sys.platform == "win32":
+        pytest.skip("requires a Unix bash; Windows runners may expose a WSL launcher")
     import subprocess
 
     bin_dir = tmp_path / "bin"

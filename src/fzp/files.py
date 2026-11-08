@@ -41,8 +41,9 @@ def walk_files(root: str = ".", hidden: bool = False) -> list[str]:
             files = [f for f in files if not f.startswith(".")]
         dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS)
         for name in sorted(files):
+            # 统一用 POSIX 分隔符，Windows 下也输出 src/app.py。
             path = os.path.relpath(os.path.join(current, name), root)
-            results.append(path)
+            results.append(path.replace(os.sep, "/"))
             if len(results) >= MAX_FILES:
                 return results
 

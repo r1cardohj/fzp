@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import re
 
+import pytest
+from prompt_toolkit.input.base import DummyInput
+from prompt_toolkit.output import DummyOutput
 from prompt_toolkit.styles import Style
+
+import fzp.tui as tui
 
 from fzp.tui import (
     MAX_VISIBLE_RESULTS,
@@ -12,6 +17,13 @@ from fzp.tui import (
     Picker,
     status_text,
 )
+
+
+@pytest.fixture(autouse=True)
+def dummy_terminal(monkeypatch):
+    """这些单元测试不需要真实终端，在 Windows CI 中也不能访问控制台。"""
+    monkeypatch.setattr(tui, "create_input", lambda **kwargs: DummyInput())
+    monkeypatch.setattr(tui, "create_output", lambda *args, **kwargs: DummyOutput())
 
 CJK = re.compile(r"[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]")
 
@@ -33,15 +45,8 @@ def test_status_text():
     assert status_text(0, 0, 10) == "  0/10  (10 items)"
 
 
-def test_picker_is_inline_and_erased_on_exit(monkeypatch):
+def test_picker_is_inline_and_erased_on_exit():
     """Ctrl-T 场景必须保留 shell 屏幕，在光标下方展开，而不是全屏清屏。"""
-    import prompt_toolkit.input.defaults as input_defaults
-    import prompt_toolkit.output.defaults as output_defaults
-    from prompt_toolkit.input.base import DummyInput
-    from prompt_toolkit.output import DummyOutput
-
-    monkeypatch.setattr(input_defaults, "create_input", lambda **kwargs: DummyInput())
-    monkeypatch.setattr(output_defaults, "create_output", lambda *args, **kwargs: DummyOutput())
     picker = Picker(["a", "b"])
     assert picker.app is not None
     assert picker.app.full_screen is False
@@ -49,14 +54,7 @@ def test_picker_is_inline_and_erased_on_exit(monkeypatch):
     assert picker._visible_rows() == 2
 
 
-def test_visible_results_are_capped(monkeypatch):
-    import prompt_toolkit.input.defaults as input_defaults
-    import prompt_toolkit.output.defaults as output_defaults
-    from prompt_toolkit.input.base import DummyInput
-    from prompt_toolkit.output import DummyOutput
-
-    monkeypatch.setattr(input_defaults, "create_input", lambda **kwargs: DummyInput())
-    monkeypatch.setattr(output_defaults, "create_output", lambda *args, **kwargs: DummyOutput())
+def test_visible_results_are_capped():
     picker = Picker([str(i) for i in range(50)])
     assert picker._visible_rows() == MAX_VISIBLE_RESULTS
 
