@@ -204,16 +204,22 @@ class Picker:
 
         @bindings.add("enter")
         def _accept(event) -> None:
-            event.app.exit(result=self._current())
+            self._exit(self._current())
 
         @bindings.add("c-c")
         @bindings.add("c-d")
         @bindings.add("c-g")
         @bindings.add("escape")
         def _abort(event) -> None:
-            event.app.exit(result=None)
+            self._exit(None)
 
         return bindings
+
+    def _exit(self, result: str | None) -> None:
+        """幂等退出：快速连按退出键时避免重复调用 Application.exit() 抛异常。"""
+        assert self.app is not None
+        if self.app.future is not None and not self.app.future.done():
+            self.app.exit(result=result)
 
     # ------------------------------------------------------------------- 入口
 
