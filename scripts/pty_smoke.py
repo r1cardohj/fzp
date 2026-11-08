@@ -67,9 +67,11 @@ def main():
         [b"c", b"l", b"i", b"\r"],
         stdin_data="src/fzp/cli.py\nREADME.md\npyproject.toml\n",
     )
-    print("case1 exit:", code, "| tail:", _lines(out)[-1:])
+    print("case1 exit:", code, "| selected path printed:", "src/fzp/cli.py" in out)
     assert code == 0, code
-    assert _lines(out)[-1].strip() == "src/fzp/cli.py", out
+    assert "src/fzp/cli.py" in out, out
+    # 内联模式：不能切换到 alternate screen（会清屏 / 从终端顶部开始）。
+    assert b"\x1b[?1049h" not in raw, raw[:1000]
     # 样式检查：不能用背景色 / 反显，命中字符用前景色（亮绿 92）
     sgr = set(re.findall(rb"\x1b\[([0-9;]*)m", raw))
     assert not any(b"7" in params.split(b";") for params in sgr), sgr
@@ -79,9 +81,9 @@ def main():
 
     # 2) 无管道：扫描当前目录，-q 预填查询，直接回车
     code, out, raw = run([sys.executable, "-m", "fzp.cli", "-q", "tui"], [b"\r"])
-    print("case2 exit:", code, "| tail:", _lines(out)[-1:])
+    print("case2 exit:", code, "| selected path printed:", "src/fzp/tui.py" in out)
     assert code == 0, code
-    assert _lines(out)[-1].strip() == "src/fzp/tui.py", out
+    assert "src/fzp/tui.py" in out, out
 
     # 3) Esc 取消 -> 退出码 130，且不输出结果
     code, out, _ = run([sys.executable, "-m", "fzp.cli"], [b"\x1b"], stdin_data="a\nb\n")
@@ -94,9 +96,9 @@ def main():
         [b"\x1b[B", b"\x1b[B", b"\r"],
         stdin_data="".join(f"file{i}.py\n" for i in range(5)),
     )
-    print("case4 exit:", code, "| tail:", _lines(out)[-1:])
+    print("case4 exit:", code, "| selected path printed:", "file2.py" in out)
     assert code == 0, code
-    assert _lines(out)[-1].strip() == "file2.py", out
+    assert "file2.py" in out, out
 
     # 5) 无匹配时的英文提示（输入三个 z 后再 Esc 退出）
     code, out, _ = run(

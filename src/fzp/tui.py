@@ -33,6 +33,7 @@ STYLE = Style.from_dict(
 # 界面文案集中在这里，保持全英文
 PROMPT = "❯ "
 NO_MATCH = "<no match>"
+MAX_VISIBLE_RESULTS = 10
 
 
 def status_text(position: int, matches: int, total: int) -> str:
@@ -79,7 +80,8 @@ class Picker:
         self.app = Application(
             layout=layout,
             key_bindings=self._key_bindings(),
-            full_screen=True,
+            full_screen=False,
+            erase_when_done=True,
             mouse_support=False,
             style=STYLE,
             input=create_input(always_prefer_tty=True),
@@ -96,12 +98,14 @@ class Picker:
         return sys.stdout
 
     def _visible_rows(self) -> int:
-        """结果区可显示的行数（减去查询行和状态行）。"""
+        """候选区高度：最多 10 行，少候选时不撑出多余空白。"""
+        if not self.results:
+            return 1
         try:
             rows = get_app().output.get_size().rows
         except Exception:
             rows = 24
-        return max(1, rows - 2)
+        return max(1, min(len(self.results), MAX_VISIBLE_RESULTS, rows - 2))
 
     def _on_query_changed(self, _buffer: Buffer) -> None:
         self._refresh()

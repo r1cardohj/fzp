@@ -3,6 +3,20 @@ name = "fzp"
 version = "0.1.0"
 description = "A minimal fzf clone in Python: custom fuzzy scoring + prompt_toolkit interactive UI"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["fzf", "fuzzy", "finder", "cli", "terminal"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Utilities",
+]
 authors = [
     { name = "r1cardohj", email = "2413302357@qq.com" }
 ]
@@ -11,6 +25,11 @@ dependencies = [
     "click>=8.5.1",
     "prompt-toolkit>=3.0.53",
 ]
+
+[project.urls]
+Homepage = "https://github.com/r1cardohj/fzp"
+Repository = "https://github.com/r1cardohj/fzp"
+Issues = "https://github.com/r1cardohj/fzp/issues"
 
 [project.scripts]
 fzp = "fzp.cli:main"
