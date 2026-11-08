@@ -1,6 +1,6 @@
 [project]
 name = "fzp"
-version = "0.1.0"
+version = "0.2.0"
 description = "A minimal fzf clone in Python: custom fuzzy scoring + prompt_toolkit interactive UI"
 readme = "README.md"
 license = "MIT"
@@ -20,7 +20,7 @@ classifiers = [
 authors = [
     { name = "r1cardohj", email = "2413302357@qq.com" }
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 dependencies = [
     "click>=8.5.1",
     "prompt-toolkit>=3.0.53",

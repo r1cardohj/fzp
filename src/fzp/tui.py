@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from typing import Sequence
+from typing import IO, Sequence
 
 from prompt_toolkit.application import Application, get_app
 from prompt_toolkit.buffer import Buffer
@@ -49,7 +49,18 @@ class Picker:
     pick() 返回选中的条目；用户按 Ctrl-C / Esc 时返回 None。
     """
 
-    def __init__(self, items: Sequence[str], query: str = "") -> None:
+    def __init__(
+        self,
+        items: Sequence[str],
+        query: str = "",
+        input: object | None = None,  # PosixPipeInput / create_pipe_input()
+        output: IO[str] | None = None,
+    ) -> None:
+        """``input``/``output`` override the TTY streams (for embedding).
+
+        Pass a pipe input and a text stream to render inline inside another
+        prompt_toolkit application instead of taking over the terminal.
+        """
         self.items = list(items)
         self.results: list[tuple[str, Match]] = []
         self.pointer = 0
@@ -84,8 +95,8 @@ class Picker:
             erase_when_done=True,
             mouse_support=False,
             style=STYLE,
-            input=create_input(always_prefer_tty=True),
-            output=create_output(self._ui_stream()),
+            input=input if input is not None else create_input(always_prefer_tty=True),
+            output=create_output(output if output is not None else self._ui_stream()),
         )
         self._refresh()
 
