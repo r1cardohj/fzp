@@ -1,8 +1,8 @@
-"""`fzp setup`：把 key-bindings（默认 Ctrl-T）写入 shell 配置文件。
+"""`fzp setup`：把 Ctrl-T / Ctrl-R key-bindings 写入 shell 配置文件。
 
 机制与 fzf 的 `key-bindings.bash` 相同：readline 收到 Ctrl-T 时调用
-`__fzp_select`，它先保存当前行内容，清空命令行后运行 fzp，选中结果
-（相对路径）再填回命令行（默认补一个空格，可用 ^ 前缀追加模式）。
+`__fzp_select`，把选中的相对路径填回命令行；收到 Ctrl-R 时调用
+`__fzp_history`，从历史中 fuzzy 搜索并替换当前命令行。
 """
 
 from __future__ import annotations
@@ -36,6 +36,23 @@ if [ -n "$BASH_VERSION" ]; then
     fi
   }
   bind -x '"\C-t": __fzp_select'
+
+  __fzp_history() {
+    local item
+    item="$(
+      HISTTIMEFORMAT='' builtin history |
+        awk '
+          { sub(/^[[:space:]]*[0-9]+[[:space:]]+/, ""); commands[NR] = $0 }
+          END { for (i = NR; i > 0; i--) if (!seen[commands[i]]++) print commands[i] }
+        ' |
+        __FZP_COMMAND__ -q "$READLINE_LINE"
+    )" || return
+    if [ -n "$item" ]; then
+      READLINE_LINE="$item"
+      READLINE_POINT=${#READLINE_LINE}
+    fi
+  }
+  bind -x '"\C-r": __fzp_history'
 fi
 # <<< fzp key-bindings <<<"""
 
