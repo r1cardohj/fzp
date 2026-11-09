@@ -49,8 +49,7 @@ def _run_picker(query: str, hidden: bool) -> None:
     items: list[str] = []
     if sys.stdin is not None and not sys.stdin.isatty():
         items = list(read_candidates(sys.stdin))
-
-    if not items:
+    else:
         items = walk_files(".", hidden=hidden)
 
     items = [item for item in items if item.strip()]
