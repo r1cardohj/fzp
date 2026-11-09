@@ -21,7 +21,7 @@ fzp                         # scan the current directory, print the selected pat
 ls | fzp                    # read candidates from a pipe
 vim $(ls | fzp)             # use with command substitution
 fzp -q cli                  # start with an initial query
-fzp setup                   # install the Ctrl-T key-binding into ~/.bashrc
+fzp setup                   # install Ctrl-T / Ctrl-R key bindings into ~/.bashrc
 ```
 
 ### From source
@@ -34,7 +34,7 @@ uv run fzp                  # scan the current directory, print the selected pat
 ls | uv run fzp             # read candidates from a pipe
 vim $(ls | uv run fzp)      # use with command substitution
 uv run fzp -q cli           # start with an initial query
-uv run fzp setup            # install the Ctrl-T key-binding into ~/.bashrc
+uv run fzp setup            # install Ctrl-T / Ctrl-R key bindings into ~/.bashrc
 ```
 
 ## Shell Integration (`fzp setup`)
@@ -53,12 +53,17 @@ to open fzp: the selected path is pasted at the cursor, followed by a space, rea
 next argument. Ending the line with `^` appends the selection instead of replacing
 (`cat notes.md ^` + Ctrl-T → `cat notes.md src/fzp/cli.py`).
 
+Press **Ctrl-R** to fuzzy-search Bash history, with recent commands first and duplicates
+removed. The current command line is used as the initial query. Enter replaces the command
+line with the selection without executing it, so you can review or edit it first; cancelling
+leaves the original command line unchanged.
+
 The block is wrapped in `# >>> fzp key-bindings >>>` / `# <<< fzp key-bindings <<<`
 markers, so re-running `fzp setup` is idempotent (it replaces the old block in place),
 and deleting the block uninstalls the binding.
 
-> Only bash gets a live binding for now (`bind -x '\C-t'` via readline); on zsh the block
-> is written but inert until zsh integration lands.
+> Only bash gets live bindings for now (`bind -x` via readline); on zsh the block is written
+> but inert until zsh integration lands.
 
 Key bindings:
 
@@ -111,7 +116,7 @@ src/fzp/
 ├── cli.py     # click entrypoint: pipe detection, directory scan, result output
 ├── fuzzy.py   # core fuzzy matching + scoring + sorting (pure functions, easy to test)
 ├── files.py   # scans the current directory when there's no piped input
-├── setup.py   # shell integration and idempotent rc-file installation
+├── setup.py   # Ctrl-T / Ctrl-R shell integration and idempotent rc-file installation
 └── tui.py     # prompt_toolkit interactive UI (query line / result list / status bar)
 tests/         # pytest: algorithm, directory scan, CLI
 scripts/pty_smoke.py  # smoke test driving a real interactive session via pty

@@ -20,6 +20,8 @@ def test_inject_appends_snippet(tmp_path: Path):
     assert setup_mod.FOOTER in content
     assert "bind -x" in content
     assert "__fzp_select" in content
+    assert "__fzp_history" in content
+    assert "\\C-r" in content
     # 原有内容保留
     assert "export EDITOR=vim" in content
 
@@ -94,6 +96,83 @@ printf '%s|%s\\n' "$READLINE_LINE" "$READLINE_POINT"
     proc = subprocess.run(["bash", "-c", script_append], capture_output=True, text=True, env=env)
     line, _ = proc.stdout.strip().rsplit("|", 1)
     assert line == "cat notes.md  src/fzp/cli.py"
+
+
+def test_bash_history_binding_searches_recent_unique_commands(tmp_path: Path):
+    """Ctrl-R 使用当前行作 query，以最新优先、去重后的历史替换命令行。"""
+    if shutil.which("bash") is None or sys.platform == "win32":
+        pytest.skip("requires a Unix bash; Windows runners may expose a WSL launcher")
+    import subprocess
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_fzp = bin_dir / "fzp"
+    fake_fzp.write_text(
+        "#!/bin/sh\n"
+        "cat > \"$FZP_TEST_INPUT\"\n"
+        "printf '%s\\n' \"$@\" > \"$FZP_TEST_ARGS\"\n"
+        "printf 'echo recent\\n'\n",
+        encoding="utf-8",
+    )
+    fake_fzp.chmod(0o755)
+    snippet_file = tmp_path / "fzp-snippet.sh"
+    snippet_file.write_text(
+        setup_mod.build_shell_snippet(str(fake_fzp)), encoding="utf-8"
+    )
+    history_file = tmp_path / "history-input"
+    args_file = tmp_path / "args"
+    script = f"""
+history -c
+history -s 'echo old'
+history -s 'echo recent'
+history -s 'echo old'
+source {snippet_file}
+READLINE_LINE='rec'
+READLINE_POINT=1
+__fzp_history
+printf '%s|%s\\n' "$READLINE_LINE" "$READLINE_POINT"
+"""
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "FZP_TEST_INPUT": str(history_file),
+        "FZP_TEST_ARGS": str(args_file),
+    }
+    proc = subprocess.run(["bash", "-c", script], capture_output=True, text=True, env=env)
+    assert proc.returncode == 0, proc.stderr
+    line, point = proc.stdout.strip().rsplit("|", 1)
+    assert line == "echo recent"
+    assert int(point) == len("echo recent")
+    assert history_file.read_text(encoding="utf-8") == "echo old\necho recent\n"
+    assert args_file.read_text(encoding="utf-8") == "-q\nrec\n"
+
+
+def test_bash_history_binding_cancel_preserves_readline(tmp_path: Path):
+    if shutil.which("bash") is None or sys.platform == "win32":
+        pytest.skip("requires a Unix bash; Windows runners may expose a WSL launcher")
+    import subprocess
+
+    fake_fzp = tmp_path / "fzp"
+    fake_fzp.write_text("#!/bin/sh\ncat >/dev/null\nexit 130\n", encoding="utf-8")
+    fake_fzp.chmod(0o755)
+    snippet_file = tmp_path / "fzp-snippet.sh"
+    snippet_file.write_text(
+        setup_mod.build_shell_snippet(str(fake_fzp)), encoding="utf-8"
+    )
+    script = f"""
+source {snippet_file}
+READLINE_LINE='git status'
+READLINE_POINT=4
+__fzp_history
+printf '%s|%s\\n' "$READLINE_LINE" "$READLINE_POINT"
+"""
+    proc = subprocess.run(
+        ["bash", "-c", script],
+        capture_output=True,
+        text=True,
+        env={"PATH": "/usr/bin:/bin"},
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == "git status|4"
 
 
 def test_detect_shell_rc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
