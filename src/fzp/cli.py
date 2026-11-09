@@ -38,7 +38,7 @@ def main(ctx: click.Context, query: str, hidden: bool) -> None:
       fzp                    # scan the current directory, print the selection
       ls | fzp               # read candidates from a pipe
       vim $(ls | fzp)        # hand the selection to another command
-      fzp setup              # install Ctrl-T key-binding into your ~/.bashrc
+      fzp setup              # install Ctrl-T / Ctrl-R bindings into ~/.bashrc
     """
     if ctx.invoked_subcommand is not None:
         return
@@ -86,11 +86,11 @@ def _run_picker(query: str, hidden: bool) -> None:
 )
 @click.pass_context
 def setup(ctx: click.Context, show_only: bool, rc_path: Path | None) -> None:
-    """Install shell integration: press Ctrl-T on the command line to open fzp.
+    """Install Ctrl-T file completion and Ctrl-R history search.
 
     Writes a key-binding block (idempotent, wrapped in marker comments) into your
-    shell rc file. bash gets a real Ctrl-T binding; other shells keep the block
-    inert until their integration lands.
+    shell rc file. bash gets live bindings; other shells keep the block inert until
+    their integration lands.
     """
     from . import setup as setup_mod
 
@@ -114,7 +114,10 @@ def setup(ctx: click.Context, show_only: bool, rc_path: Path | None) -> None:
         "  Restart your shell, or run:  "
         + click.style(f"source {rc}", fg="cyan", bold=True),
     )
-    click.secho("  Then press Ctrl-T on the command line to fuzzy-pick a file.", dim=True)
+    click.secho(
+        "  Then press Ctrl-T to fuzzy-pick a file or Ctrl-R to search history.",
+        dim=True,
+    )
 
 
 if __name__ == "__main__":  # python -m fzp.cli
